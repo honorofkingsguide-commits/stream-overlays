@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@600;700&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+/*
+  ┌─────────────────────────────────────────────┐
+  │  WIDGET SIZE: 600 × 280 px                  │
+  │  Set this EXACT size in StreamElements and  │
+  │  in OBS browser source. Then position it    │
+  │  anywhere on your scene freely.             │
+  └─────────────────────────────────────────────┘
+*/
+
+:root {
+  --accent: #ff4655;   /* ← change alert color here */
+  --text:   #ffffff;
+  --dim:    rgba(255,255,255,0.15);
+}
+
+html, body {
+  width:  600px;
+  height: 280px;
+  background: transparent;
+  overflow: hidden;
+  font-family: 'Rajdhani', sans-serif;
+}
+
+body {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 20px 28px;
+}
+
+.alert-root {
+  position: relative;
+  width: 540px;
+  opacity: 0;
+  transform: perspective(700px) rotateX(35deg) rotateZ(-10deg) scale(0.82) translateY(36px);
+  will-change: transform, opacity;
+}
+
+.floaters {
+  position: absolute;
+  top: -36px; left: -32px; right: -32px; bottom: -24px;
+  pointer-events: none;
+}
+.sym {
+  position: absolute;
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 700;
+  color: var(--accent);
+  opacity: 0;
+  user-select: none;
+  transition: opacity 0.25s;
+}
+
+.event-row { display: flex; align-items: center; gap: 10px; margin-bottom: 2px; }
+.event-deco  { font-size: 13px; color: var(--accent); opacity: 0.5; font-weight: 700; }
+.event-label { font-size: 12px; font-weight: 700; letter-spacing: 0.3em; color: var(--accent); text-transform: uppercase; }
+
+.welcome-text { font-size: 58px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text); line-height: 1; }
+.name-text    { font-size: 40px; font-weight: 700; letter-spacing: 0.1em;  text-transform: uppercase; color: var(--accent); line-height: 1; margin-bottom: 12px; min-height: 46px; }
+
+.counter-row    { display: flex; align-items: center; gap: 8px; }
+.counter-digits { display: flex; gap: 2px; }
+.digit {
+  font-size: 34px; font-weight: 700; color: var(--text);
+  width: 26px; text-align: center; display: inline-block; line-height: 1;
+  transition: color 0.1s;
+}
+
+.bottom-row { display: flex; align-items: center; gap: 16px; margin-top: 10px; }
+.b-sym { font-size: 12px; color: var(--dim); font-weight: 700; font-family: 'Rajdhani', sans-serif; letter-spacing: 0.1em; }
+</style>
+</head>
+<body>
+
+<div class="alert-root" id="alertRoot">
+  <div class="floaters" id="floaters"></div>
+
+  <div class="event-row">
+    <span class="event-deco">×</span>
+    <span class="event-label" id="eventLabel">New Follower</span>
+    <span class="event-deco">◇</span>
+  </div>
+
+  <div class="welcome-text" id="welcomeText">Welcome</div>
+  <div class="name-text"    id="alertName"></div>
+
+  <div class="counter-row">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
+         stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="opacity:.75">
+      <path d="M16 11c1.66 0 3-1.34 3-3s-1.34-3-3-3"/>
+      <path d="M19 15c1.5.5 2.5 1.5 2.5 3v1h-3"/>
+      <circle cx="9" cy="8" r="3"/>
+      <path d="M3 20v-1c0-2.5 2.5-4 6-4s6 1.5 6 4v1H3z"/>
+    </svg>
+    <div class="counter-digits">
+      <span class="digit" id="d0">0</span>
+      <span class="digit" id="d1">0</span>
+      <span class="digit" id="d2">0</span>
+      <span class="digit" id="d3">0</span>
+    </div>
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+         stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="opacity:.3">
+      <path d="M3 18h18l-3-8-4.5 4L12 6l-1.5 8L6 10z"/>
+    </svg>
+  </div>
+
+  <div class="bottom-row">
+    <span class="b-sym">{ }</span>
+    <span class="b-sym">—</span>
+    <span class="b-sym">◯</span>
+    <span class="b-sym">—</span>
+    <span class="b-sym">[ ]</span>
+  </div>
+</div>
+
+<script>
+const SYMBOLS = ['×','◇','◯','{}','[]','△','◻','⬡','//','—','#','*','⌖'];
+const CHARS   = '!@#%?*|<>[]{}0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
+const SYM_POS = [
+  { top:'8px',   left:'490px', size:14 },
+  { top:'-20px', left:'240px', size:16 },
+  { top:'30px',  left:'-18px', size:13 },
+  { top:'120px', left:'510px', size:15 },
+  { top:'160px', left:'-22px', size:14 },
+  { top:'200px', left:'380px', size:13 },
+  { top:'-10px', left:'80px',  size:12 },
+  { top:'220px', left:'140px', size:14 },
+];
+
+function rnd(a,b){ return Math.floor(Math.random()*(b-a+1))+a; }
+
+function spawnFloaters(){
+  const f = document.getElementById('floaters');
+  f.innerHTML = '';
+  SYM_POS.forEach(p => {
+    const s = document.createElement('span');
+    s.className   = 'sym';
+    s.textContent = SYMBOLS[rnd(0, SYMBOLS.length-1)];
+    s.style.top      = p.top;
+    s.style.left     = p.left;
+    s.style.fontSize = p.size + 'px';
+    f.appendChild(s);
+  });
+}
+
+function showFloaters(show){
+  document.querySelectorAll('.sym').forEach((s,i) => {
+    setTimeout(() => {
+      if(show) s.textContent = SYMBOLS[rnd(0, SYMBOLS.length-1)];
+      s.style.opacity = show ? (Math.random()*0.35+0.15).toFixed(2) : '0';
+    }, i*45);
+  });
+}
+
+function scrambleName(target, duration){
+  const el = document.getElementById('alertName');
+  const t0 = Date.now();
+  const iv = setInterval(() => {
+    const p = (Date.now()-t0)/duration;
+    if(p >= 1){ clearInterval(iv); el.textContent = target; return; }
+    const revealed = Math.floor(p * target.length);
+    let out = '';
+    for(let i=0; i<target.length; i++)
+      out += i < revealed ? target[i] : CHARS[rnd(0,CHARS.length-1)];
+    el.textContent = out;
+  }, 40);
+}
+
+function spinCounter(target, duration){
+  const digits = ['d0','d1','d2','d3'].map(id => document.getElementById(id));
+  const tStr = String(target).padStart(4,'0').slice(-4);
+  const t0 = Date.now();
+  const iv = setInterval(() => {
+    const p = (Date.now()-t0)/duration;
+    if(p >= 1){
+      digits.forEach((d,i) => { d.textContent = tStr[i]; d.style.color='var(--text)'; });
+      clearInterval(iv); return;
+    }
+    const ease = 1 - Math.pow(1-p, 3);
+    digits.forEach((d,i) => {
+      const lockAt = 0.22 + i*0.19;
+      if(ease > lockAt){
+        if(d.textContent !== tStr[i]){
+          d.textContent = tStr[i];
+          d.style.color = 'var(--accent)';
+          setTimeout(() => d.style.color='var(--text)', 120);
+        }
+      } else {
+        d.textContent = Math.floor(Math.random()*10);
+      }
+    });
+  }, 35);
+}
+
+function playAlert(name, label, topWord, count){
+  const root = document.getElementById('alertRoot');
+
+  document.getElementById('eventLabel').textContent  = label;
+  document.getElementById('welcomeText').textContent = topWord;
+  document.getElementById('alertName').textContent   = '';
+  ['d0','d1','d2','d3'].forEach(id => {
+    document.getElementById(id).textContent = '0';
+    document.getElementById(id).style.color = 'var(--text)';
+  });
+  spawnFloaters();
+
+  root.style.transition = 'none';
+  root.style.opacity    = '0';
+  root.style.transform  = 'perspective(700px) rotateX(35deg) rotateZ(-10deg) scale(0.82) translateY(36px)';
+
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    /* phase 1 — fly in tilted */
+    root.style.transition = 'opacity 0.18s ease, transform 420ms cubic-bezier(0.16,1,0.3,1)';
+    root.style.opacity    = '1';
+    root.style.transform  = 'perspective(700px) rotateX(10deg) rotateZ(-4deg) scale(0.97) translateY(6px)';
+
+    setTimeout(() => {
+      /* phase 2 — snap flat */
+      root.style.transition = 'transform 130ms cubic-bezier(0.6,0,0.8,1)';
+      root.style.transform  = 'perspective(700px) rotateX(0deg) rotateZ(0deg) scale(1) translateY(0)';
+      showFloaters(true);
+      scrambleName(name, 680);
+      spinCounter(count, 1800);
+
+      /* phase 3 — overshoot bounce */
+      setTimeout(() => {
+        root.style.transition = 'transform 220ms cubic-bezier(0.34,1.56,0.64,1)';
+        root.style.transform  = 'scale(1.025)';
+        setTimeout(() => {
+          root.style.transition = 'transform 180ms ease';
+          root.style.transform  = 'scale(1)';
+        }, 220);
+      }, 140);
+
+      /* phase 4 — hold then exit */
+      setTimeout(() => {
+        showFloaters(false);
+        root.style.transition = 'opacity 0.3s ease, transform 380ms cubic-bezier(0.4,0,1,1)';
+        root.style.opacity    = '0';
+        root.style.transform  = 'perspective(700px) rotateX(-18deg) rotateZ(5deg) scale(0.88) translateY(-28px)';
+      }, 3400);
+
+    }, 430);
+  }));
+}
+
+/* ═══════════════════════════════════════════════════════════
+   StreamElements — YouTube event listener
+   ═══════════════════════════════════════════════════════════ */
+window.addEventListener('onEventReceived', function(obj){
+  const listener = obj.detail.listener;
+  const data     = obj.detail.event;
+
+  let name    = data.name    || 'Anonymous';
+  let label   = '';
+  let topWord = 'Welcome';
+  let count   = parseInt(data.count || data.amount || 1000);
+
+  switch(listener){
+
+    case 'follower-latest':
+      label   = 'New Follower';
+      topWord = 'Welcome';
+      break;
+
+    case 'subscriber-latest':
+      label   = 'New Member';
+      topWord = 'Welcome';
+      break;
+
+    case 'tip-latest': {
+      const amt = parseFloat(data.amount) || 0;
+      label   = 'Super Chat';
+      topWord = '$' + amt.toFixed(2);  /* e.g. $10.00 shown as the big word */
+      count   = Math.round(amt);
+      break;
+    }
+
+    case 'cheer-latest':
+      label   = 'Super Sticker';
+      topWord = data.amount + ' pts';
+      count   = parseInt(data.amount) || 1000;
+      break;
+
+    case 'host-latest':
+      label   = 'Now Hosting';
+      topWord = 'Welcome';
+      count   = parseInt(data.amount) || 1000;
+      break;
+
+    case 'raid-latest':
+      label   = 'Raid!';
+      topWord = 'Incoming';
+      count   = parseInt(data.amount) || 1000;
+      break;
+
+    default:
+      return;
+  }
+
+  playAlert(name, label, topWord, count);
+});
+
+window.addEventListener('onWidgetLoad', function(obj){ /* ready */ });
+
+/* ═══════════════════════════════════════════════════════════
+   Streamerbot — First Time Chatter trigger via URL params
+   URL format: overlay.html?event=firstchatter&name=USERNAME&count=1234
+   ═══════════════════════════════════════════════════════════ */
+(function(){
+  const params   = new URLSearchParams(window.location.search);
+  const event    = params.get('event');
+  const name     = params.get('name');
+  const count    = parseInt(params.get('count') || '0');
+
+  if(event === 'firstchatter' && name){
+    /* slight delay so fonts/DOM are fully ready */
+    setTimeout(() => {
+      playAlert(name, 'First Time Chatter', 'Hello', count);
+    }, 400);
+  }
+})();
+</script>
+</body>
+</html>
